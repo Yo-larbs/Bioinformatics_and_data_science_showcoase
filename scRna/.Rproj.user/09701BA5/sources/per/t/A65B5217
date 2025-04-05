@@ -1,0 +1,28 @@
+{
+    "id": "A65B5217",
+    "path": null,
+    "project_path": null,
+    "type": "object_explorer",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1740524595118.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "id": "631ed5326f1a402383c4bb7d9c2f7c12",
+        "name": "Rhesus",
+        "title": "Rhesus",
+        "language": "R",
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 0,
+    "encoding": "",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1740524595118,
+    "read_only": false,
+    "read_only_alternatives": []
+}

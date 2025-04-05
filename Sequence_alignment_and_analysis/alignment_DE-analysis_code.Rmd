@@ -1,0 +1,792 @@
+---
+title: "Yoofi code cufflinks"
+output: html_document
+date: "2024-12-11"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# bash
+
+all singularity images gotten from biocontainers
+<https://biocontainers.pro/>
+
+## downloading, creating and storing the data
+
+first need to get reference, annotation GTF and all RNA-seq runs from
+online, in paper they used data from NCBI
+
+```{bash}
+#!/bin/bash
+mkdir -p data/raw_data/S.cere
+mkdir -p data/reference/S.cere
+mkdir -p data/output/S.cere/
+#making folders for output -P specifies to make folder if its not already existing
+wget -P data/reference/S.cere https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.gtf.gz
+wget -P data/reference/S.cere https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz
+#wget reference and reference annotation gtf
+gunzip data/reference/S.cere/GCF_000146045.2_R64_genomic.fna.gz
+gunzip data/reference/S.cere/GCF_000146045.2_R64_genomic.gtf.gz
+#unzip them
+
+```
+
+### creating rRNA gtf
+
+for downstream transcriptome assembly and diff expression tests need to
+create a gtf containing rRNA genes for masking rRNA highly present and
+without masking could affect values (they also did this in in study)
+
+```{bash}
+#!/bin/bash
+grep -e 'gene_biotype "rRNA"' -e 'gene_biotype "misc_RNA"' data/reference/S.cere/GCF_000146045.2_R64_genomic.gtf  > rRNA.gtf
+# grep out lines containing gene biotype rRNA or misc_RNA (in NCBI gtf many rRNA genes put down as misc_RNA, cross checked these with ensemble gtf)
+#create a gtf file containing these lines
+```
+
+### downloading runs
+
+downloading runs ( downloaded all 54, contains 3 replicates for 3
+different times, each has 4 lane and each lane has 2 for paired ends
+(reverse and forwards))
+
+```{bash}
+#!/bin/bash
+#-nc stops downloading same file again (was in case i listed it wrong)
+#-P stores it in the prefix i give it (in this case data/raw_data/S.cere)
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148799/W2-12_S2_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148803/W2-12_S2_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148800/W2-12_S2_L002_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148804/W2-12_S2_L002_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148801/W2-12_S2_L003_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148805/W2-12_S2_L003_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148802/W2-12_S2_L004_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148806/W2-12_S2_L004_R2_001.fastq.gz
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148791/W1-12_S1_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148795/W1-12_S1_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148792/W1-12_S1_L002_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148796/W1-12_S1_L002_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148793/W1-12_S1_L003_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148797/W1-12_S1_L003_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148794/W1-12_S1_L004_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148798/W1-12_S1_L004_R2_001.fastq.gz
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148807/W3-12_S3_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148811/W3-12_S3_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148808/W3-12_S3_L002_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148812/W3-12_S3_L002_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148809/W3-12_S3_L003_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148813/W3-12_S3_L003_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148810/W3-12_S3_L004_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148814/W3-12_S3_L004_R2_001.fastq.gz
+
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148815/W1-24_S4_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148819/W1-24_S4_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148816/W1-24_S4_L002_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148820/W1-24_S4_L002_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148817/W1-24_S4_L003_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148821/W1-24_S4_L003_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148818/W1-24_S4_L004_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148822/W1-24_S4_L004_R2_001.fastq.gz
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148823/W2-24_S5_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148827/W2-24_S5_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148824/W2-24_S5_L002_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148828/W2-24_S5_L002_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148825/W2-24_S5_L003_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148829/W2-24_S5_L003_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148826/W2-24_S5_L004_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148830/W2-24_S5_L004_R2_001.fastq.gz
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148831/W3-24_S6_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148835/W3-24_S6_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148832/W3-24_S6_L002_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148836/W3-24_S6_L002_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148833/W3-24_S6_L003_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148837/W3-24_S6_L003_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148834/W3-24_S6_L004_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148838/W3-24_S6_L004_R2_001.fastq.gz
+
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148839/W1_S1_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148840/W1_S1_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148841/W2_S2_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148842/W2_S2_L001_R2_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148843/W3_S3_L001_R1_001.fastq.gz
+wget -nc --no-verbose -P data/raw_data/S.cere ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR314/ERR3148844/W3_S3_L001_R2_001.fastq.gz
+gunzip data/raw_data/S.cere/W*
+#gunzip all this
+```
+
+##Alignment For alignment used hisat2 due to problems with tophat ,
+tophat was superceded by HISAT2, so results may be a bit different but
+considered more accurate. also within experimental methods they say they
+used hisat2
+
+### qc
+
+previously ran all reads through fastp, from analysis of all the reports
+produced around the first 15 bases had very low Phred score and was very
+low quality, thus decided to trim the first 15 nucleotides giving much
+better reports and generally better reads used fastp which accepts
+paired end reads. Using singularity image to get right version and
+quicker than downloading
+
+```{bash}
+#!/bin/bash
+for f1 in data/raw_data/S.cere/*_R1_001.fastq #finds all forward (R1) files in raw data and per loop one of them is assigned f1
+do
+  f2=${f1%%_R1_001.fastq}"_R2_001.fastq" 
+  singularity run https://depot.galaxyproject.org/singularity/fastp:0.18.0--hd28b015_0 fastp -f 15 -w 16 -i $f1 -I $f2 -o "${f1%%.fastq}_trimmed.fastq" -O 
+  #i assign f2 to reverse run by removing the forward marker for f1 and giving reverse marker ('R2...'), ensuring that f2 is always the reverse for f1 "${f2%%.fastq}_trimmed.fastq"
+done
+
+```
+
+### indexing
+
+need to create index for reference
+
+```{bash}
+#!/bin/bash
+singularity run https://depot.galaxyproject.org/singularity/hisat2:2.1.0--py27h2d50403_2 hisat2-build -f data/reference/S.cere/GCF_000146045.2_R64_genomic.fna S.cere_index
+mkdir -p data/reference/S.cere/S.cere_index/ && mv S.cere_index.* $_
+# make directory and if i am able to (%%) then it moves the index files to it
+```
+
+### merging lanes for each run
+
+so for replicate in 14hr and 26hr they were done across 4 lanes, so i
+need to eventually merge the corresponding ones together, i could do
+this by merging the BAM or SAM files after alignment but it is easier to
+just merge the fastq (which just merges the reads together) i do this by
+just appending all of them to the end of the fastq for the first lane i
+need to do this separately for the forward and reverse runs (paired
+ends), and for both 14hr and 26hr (titled 12 and 24)
+
+```{bash}
+#!/bin/bash
+for a1 in data/raw_data/S.cere/*-12*L001_R1_001_trimmed.fastq # similarly to fastp i find all trimmed fastq that are forwardd strand and lane 1
+do
+  a2=${a1%%_L001_R1_001_trimmed.fastq}"_L002_R1_001_trimmed.fastq"
+  a3=${a1%%_L001_R1_001_trimmed.fastq}"_L003_R1_001_trimmed.fastq"
+  a4=${a1%%_L001_R1_001_trimmed.fastq}"_L004_R1_001_trimmed.fastq"
+  # i get the other 3 lanes for the read
+  cat $a2 >> $a1
+  # i then append the other lanes to the first lane, this works as different lanes are used to increase read depth
+  # i append them now instead of merging the bam files as it is much quicker (appending it shouldnt negatively affect results, just joining all the reads)
+  echo $a2 >> $a1
+  #echoes what just happened
+  rm $a2
+  # removes the other lane (to save space and prevent downstream mixup)
+  cat $a3 >> $a1
+  echo $a3 >> $a1
+  rm $a3
+  cat $a4 >> $a1
+  echo $a4 >> $a1
+  rm $a4
+  #i do the same for the other 3 lanes
+done
+
+for a1 in data/raw_data/S.cere/*-12*L001_R2_001_trimmed.fastq # i do the same for the reverse
+do
+  a2=${a1%%_L001_R2_001_trimmed.fastq}"_L002_R2_001_trimmed.fastq"
+  a3=${a1%%_L001_R2_001_trimmed.fastq}"_L003_R2_001_trimmed.fastq"
+  a4=${a1%%_L001_R2_001_trimmed.fastq}"_L004_R2_001_trimmed.fastq"
+  cat $a2 >> $a1
+  echo $a2 >> $a1
+  rm $a2
+  cat $a3 >> $a1
+  echo $a3 >> $a1
+  rm $a3
+  cat $a4 >> $a1
+  echo $a4 >> $a1
+  rm $a4
+done
+
+for a1 in data/raw_data/S.cere/*-24*L001_R1_001_trimmed.fastq # do the same for the other time condition
+do
+  a2=${a1%%_L001_R1_001_trimmed.fastq}"_L002_R1_001_trimmed.fastq"
+  a3=${a1%%_L001_R1_001_trimmed.fastq}"_L003_R1_001_trimmed.fastq"
+  a4=${a1%%_L001_R1_001_trimmed.fastq}"_L004_R1_001_trimmed.fastq"
+  cat $a2 >> $a1
+  echo $a2 >> $a1
+  rm $a2
+  cat $a3 >> $a1
+  echo $a3 >> $a1
+  rm $a3
+  cat $a4 >> $a1
+  echo $a4 >> $a1
+  rm $a4
+done
+
+for a1 in data/raw_data/S.cere/*-24*L001_R2_001_trimmed.fastq # and the reverse of that one
+do
+  a2=${a1%%_L001_R2_001_trimmed.fastq}"_L002_R2_001_trimmed.fastq"
+  a3=${a1%%_L001_R2_001_trimmed.fastq}"_L003_R2_001_trimmed.fastq"
+  a4=${a1%%_L001_R2_001_trimmed.fastq}"_L004_R2_001_trimmed.fastq"
+  cat $a2 >> $a1
+  echo $a2 >> $a1
+  rm $a2
+  cat $a3 >> $a1
+  echo $a3 >> $a1
+  rm $a3
+  cat $a4 >> $a1
+  echo $a4 >> $a1
+  rm $a4
+done
+```
+
+### actual alignment
+
+using HISAT2 and run alignment for each replicate using for loop,
+specified each forward and reverse read (for paired end) using variables
+\$f1 (forward) and \$f2 (reverse)
+
+```{bash}
+#!/bin/bash
+reads_dir="data/raw_data/S.cere"
+for f1 in $reads_dir/*_R1_001_trimmed.fastq
+do
+  f2=${f1%%_R1_001_trimmed.fastq}"_R2_001_trimmed.fastq"
+  singularity run https://depot.galaxyproject.org/singularity/hisat2:2.1.0--py27h2d50403_2 hisat2 --dta-cufflinks -x data/reference/S.cere/S.cere_index/S.cere_index -1 ${f1} -2 $f2 -S ${f1}_out.sam
+done
+# for each paired end (remember we concatenated the other lanes) run alignmnet, use cufflinks option which helps downstream assembly, output it as the name of the run.out
+mkdir data/output/S.cere/SAM_files
+mv data/raw_data/S.cere/*.sam data/output/S.cere/SAM_files
+# moving SAM files to correct folder
+```
+
+## cufflinks suite
+
+the cufflinks suite are a collection of tools for RNA-seq processing and
+analysis
+
+### samtools
+
+using samtools which is designed to process and BAM and SAM files
+
+#### convert to BAM
+
+converts very large SAM (sequence alignment map) files to smaller BAM
+(binary alignment map) files, can later delete SAM files to save space
+
+```{bash}
+#!/bin/bash
+for i in data/output/S.cere/SAM_files/*
+do
+  singularity run https://depot.galaxyproject.org/singularity/samtools:0.1.19--3 samtools view -hbS $i > ${i%%.sam}".bam"
+done
+#converts SAM into BAM -b(outputs BAM) -h(keeps header) -S (ignores compatbility tests), for each sam file
+
+mkdir data/output/S.cere/BAM_files
+mv data/output/S.cere/SAM_files/*.bam data/output/S.cere/BAM_files
+```
+
+#### BAM sort
+
+for cufflinks to work the BAM files neeeds to be sorted , using SAMtools
+sort function , can sort it based on leftmost coordinates
+
+```{bash}
+#!/bin/bash 
+#BAM file requires sorting, by leftmost coordinates (need to sort it for downstream assembly)
+
+for i in data/output/S.cere/BAM_files/*
+  do
+  singularity run https://depot.galaxyproject.org/singularity/samtools:0.1.19--3 samtools sort -f -@ 20 $i ${i%%.bam}"_sorted.bam"
+done
+
+echo sorting fin
+```
+
+### cufflinks
+
+cufflinks assembles a transcriptome using both a gtf file (reference
+annotiation) and your BAM files , so i run cufflinks for each BAM file
+(using singularity image), this outputs me a gtf file which contains the
+rna transcripts from the reads found in the run, using an annotated gtf
+it should also say what protein that transcript produces. Cufflinks is
+both capable of **de novo** transcriptome assembly where it tries to
+identify new genes but i dont need that in this paper.It also quantifies
+genes allowing for further differential expression analysis
+
+```{bash}
+#!bin/bash
+mkdir data/output/S.cere/cufflinks
+for s1 in data/output/S.cere/BAM_files/*_sorted.bam
+do
+  singularity run https://depot.galaxyproject.org/singularity/cufflinks:2.2.1--py27_1 cufflinks -p 40 -b data/reference/S.cere/GCF_000146045.2_R64_genomic.fna -u -o ${s1%%.fastq_output_sorted.bam}"_cufflinks" -G data/reference/S.cere/GCF_000146045.2_R64_genomic.gtf $s1
+done
+# running cufflinks for each BAM (should be 9 BAM for each replicate and each condtion)
+# running at 40 cores (very slow)
+# -u gives reference to help it correct, -G stops RABT or denovo assembly and assembles transcriptome according to provided GTF
+# outputs gtf (annotation of features) for each replicate
+echo cufflinks fin
+mv data/output/S.cere/BAM_files/*_cufflinks data/output/S.cere/cufflinks
+```
+
+### cuffmerge/cuffcompare
+
+in order for differential expression analysis i need to merge all my
+annotated gtf files created by cufflinks was going to use cuffmerge, but
+didnt work on HPC on scratch_tmp (problem with temporary files),instead
+used cuffcompare which also merges the file but Cuffcompare will only
+merge if A is "contained" in B, or vice versa. cuffmerge normally uses
+cuffcompare process as well within it for denovo assembly this would may
+affect results alot but since we only aligned to reference, if we give
+reference it should merge using the reference correctly.
+
+cuffcompare and cuffmerge both require .txt file specifying the location
+of all the BAM files to be merged
+
+```{bash}
+#!/bin/bash
+mkdir data/output/S.cere/cuffmerge
+touch assembly_gtf.txt
+# requires a text file containing a list of file pathways of all gtf to be merged
+ls data/output/S.cere/cufflinks/*/transcripts.gtf > assembly_gtf.txt
+# find all cufflinks files and lists their pathway in file
+
+singularity run https://depot.galaxyproject.org/singularity/cufflinks:2.2.1--py27_1 cuffcompare -r data/reference/S.cere/GCF_000146045.2_R64_genomic.gtf -i assembly_gtf.txt
+mv cuffcmp.combined.gtf data/output/S.cere/cuffmerge
+cp -v data/output/S.cere/cuffmerge/cuffcmp.combined.gtf data/output/S.cere/cuffmerge/merged.gtf
+# i rename the combined gtf to merged gtf because its easier (already wrote code using merged gtf as output name)
+
+echo merge fin
+
+```
+
+### cuffquant
+
+cuffquant quantifies gene expression and saves it as a profile, this can
+later be used for differential expression analysis saving a lot of time
+these .cxb files created can also be used for other analysis or getting
+the raw data takes BAM files in gives out .cxb files
+
+```{bash}
+#!/bin/bash
+mkdir data/output/S.cere/cuffquant
+
+#cuffquant creates cxb files, this step is not neccesary but these files can be used as input to cuffdiff (differential analysis)
+# this massively speeds it up compared to just using SAM or BAM files
+
+for i in data/output/S.cere/BAM_files/*_sorted.bam
+do
+  singularity run https://depot.galaxyproject.org/singularity/cufflinks:2.2.1--py27_1 cuffquant -p 30 -o ${i%%_trimmed.fastq_out_sorted.bam}"_abundance" data/output/S.cere/cuffmerge/merged.gtf $i
+done
+#for each sorted BAM file convert to CXB file, and change output name (-o) running at 30 cores (-p)
+echo quant fin
+mv data/output/S.cere/BAM_files/*_abundance data/output/S.cere/cuffquant
+```
+
+#### renaming cuffquant
+
+cuffquant outputs a folder called the output name (e.g
+W1-24-S4_R1-001_abundance) with a file called just abundance.cxb,for
+multiple BAM files having filename just be abundance.cxb is annoying
+especially as these files would have to be listed in comma delisted
+format for cuffdiff, code below names each abundance file after the
+folder they are found in e.g abundance.cxb -\>
+W1-24-S4_R1-001_abundance.cxb
+
+```{bash}
+#!/bin/bash
+find data/output/S.cere/cuffquant -type f -exec bash -c 'fp=$(dirname "$1");fn=$(basename "$fp");px="${1##*.}";mv "$1" "$fp"/"$fn"."$px"' sh "{}" \;
+# finds each file (-type f) in each cuffquant folder, when it finds it executes a bash script (-exec bash)
+#gathers the path name fp and the directory name fn and then the extension name px, then moves the file (renaming it) to path/directory.extension
+
+# then move each of the previously names abundance files out of the folder then delete the folder
+for i in data/output/S.cere/cuffquant/*
+  do
+  mv $i/* data/output/S.cere/cuffquant
+  rmdir $i
+done
+```
+
+### cuffdiff differential expression analysis
+
+cuffdiff runs differential expression analysis on data it requires a
+comma delimited list for each replicate for each sample within paper
+they used upper quartile normalisation -M masks the features in provided
+GTF, i use this to mask rRNA gtf (also done in the paper) -u does some
+extra fragment correction -b is giving originial reference for
+correction
+
+```{bash}
+#!/bin/bash
+mkdir data/output/S.cere/cuffdiff
+#cuffdiff requires comma delimited list of replicates for each sample, c1 is 6hr, c2 is 14hr, c3 is 26hr
+
+c1="data/output/S.cere/cuffquant/W1_S1_L001_R1_001_abundance.cxb,data/output/S.cere/cuffquant/W2_S2_L001_R1_001_abundance.cxb,data/output/S.cere/cuffquant/W3_S3_L001_R1_001_abundance.cxb"
+c2="data/output/S.cere/cuffquant/W1-12_S1_L001_R1_001_abundance.cxb,data/output/S.cere/cuffquant/W2-12_S2_L001_R1_001_abundance.cxb,data/output/S.cere/cuffquant/W3-12_S3_L001_R1_001_abundance.cxb"
+c3="data/output/S.cere/cuffquant/W1-24_S4_L001_R1_001_abundance.cxb,data/output/S.cere/cuffquant/W2-24_S5_L001_R1_001_abundance.cxb,data/output/S.cere/cuffquant/W3-24_S6_L001_R1_001_abundance.cxb"
+singularity run https://depot.galaxyproject.org/singularity/cufflinks:2.2.1--py27_1 cuffdiff --library-norm-method quartile -u -M rRNA.gtf -b data/reference/S.cere/GCF_000146045.2_R64_genomic.fna -p 30 -L 6hr,14hr,26hr -o data/output/S.cere/cuffdiff/ data/output/S.cere/cuffmerge/merged.gtf $c1 $c2 $c3
+
+# the paper specified they used upper quartile normalisation, -L labels for each sample, have to provide gtf, used merged gtf 
+```
+
+# R and cummeRbund
+
+cummeRbund is designed to read cuffdiff output for downstream analysis
+and visualisation still part of cufflinks suite
+
+## istalling and loading neccesary packages
+
+install cummeRbund through BiocManager
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(version = "3.20")
+BiocManager::install("cummeRbund")
+install.packages('dplyr')
+install.packages("RColorBrewer") #this is a colour palette
+install.packages("ggVennDiagram") # to make venn diagram
+install.packages("tidyr")
+install.packages("ggplot2")
+library(cummeRbund) # cummeRbund is the R package designed to read cuffdiff output, allows you to visualise and manipulate data
+library(tidyr)
+library(dplyr) # data manipulation
+library(RColorBrewer) 
+library(ggVennDiagram) 
+library(ggplot2)
+```
+
+## loading in cuffdiff
+
+i load in the cuffdiff data as cuff_data which it stores as an object
+called a cuffset i can then further manipulate this i use this to begin
+making basic plots such as scattergraphs and i write it to png saves it
+in working directory
+
+```{r}
+cuff_data <- readCufflinks('outputs/cuffdiff') #cummeRbund directly reads cuffdiff output, so have to give cuffdiff folder
+
+png(file="scatterplot_6hr_14hr.png") #specifying output file
+csScatter(genes(cuff_data), 'X6hr', 'X14hr') #cummeRbund has built in scattergraph function, X6hr and x14hr refer to the 2 time conditions
+dev.off()
+
+png(file="scatterplot_6hr_26hr.png")
+csScatter(genes(cuff_data), '6hr', '26hr')
+dev.off()
+
+png(file="scatterplot_6hr_26hr.png")
+csScatter(genes(cuff_data), 'X14hr', 'X26hr')
+dev.off()
+
+png(file="scatterplot_matrix.png")
+csScatterMatrix(genes(cuff_data)) # scatter matrix plots scattergraph for all samples
+dev.off() #dev.off() stops writing to my the pdf
+
+#pdf(file="heatmap.pdf")
+csHeatmap(myGene,cluster='both',labRow=F) # this gives heatmap across 3 samples for the geneset you specify (in this case mygene)
+#dev.off()
+```
+
+## getting significant genes and making volcano plots
+
+### 6vs14
+
+first i can use the getSig() function to get a list of significatn gene
+IDs (can specificy or q value), then i can use getGenes to make an
+object containing data about that list of genes i use this to not only
+get the gene names but also find the specific tests i want ( in this
+case 6vs14hr ) for the q value and log2fold (\<0.05 and ≥2 respectively)
+using diffdata(). then create a separate dataframe containing this
+information using subset() function.
+
+I do a similar thing for making a volcano plot except i dont remove the
+insignificant and non expressed or underexpressed genes. I create a new
+table and assign it colours and labels to construct the volcano from
+
+the original paper didn't have a volcano plot but i made to inspect my
+data in this case test_1= 6v14
+
+```{r}
+test_1.all_genes = getSig(cuff_data,x='X6hr',y='X14hr',level="genes",alpha=0.99) # here we gather all genes that were tested for differential expression between 6hr and 14hr, and get the information for all of them)
+test_1.genes = getGenes(cuff_data,test_1.all_genes)
+test_1.upreg=subset(diffData(test_1.genes),sample_1=='X6hr' & sample_2=='X14hr' & q_value<0.05 & log2_fold_change>2,select= c(gene_id,log2_fold_change,q_value))
+#here i create a subset using the object 'test_1.genes'
+#from this object i extract all the differential test data using diffData(). since the object holds all the information about the list of genes i gave it (including every test those genes were involved in) i specify that i only want the tests between 6 and 14 hr
+# with a siginificant q value (not p value since it runs multiple tests) and a log fold over 2 (big increase in expression), i then create a dataframe holding this information
+
+test_1.upreg_volc=subset(diffData(test_1.genes),sample_1=='X6hr' & sample_2=='X14hr',select= c(gene_id,log2_fold_change,q_value))
+#  do a similar thing as above but since this is used for volcano plots i want all tests for those times not just the signifcant ones
+test_1.upreg_genes = as.vector(test_1.upreg$gene_id)
+#  save the gene id from my dataframe as a vector for further manipulation
+test_1.upreg_genes_names=getGenes(cuff_data,test_1.upreg_genes)
+#  take this vector for the significantly expressed high log2fold and create an object giving me the information on these genes
+test_1.upreg_genes_names=featureNames(test_1.upreg_genes_names)
+# cummeRbund saves genes using arbitrary geneID from cufflinks (in this case using XLOC...) featureNames()gets the short gene names which allow further analysis (such as gene ontology)
+```
+
+now to make the volcano plot
+
+```{r}
+test_1.upreg_volc$col=ifelse(test_1.upreg_volc$log2_fold_change > 2 & test_1.upreg$q_value<=0.05, "blue","black")
+test_1.upreg_volc$col[test_1.upreg_volc$log2_fold_change<=-2 & test_1.upreg$q_value<=0.05]="red"
+# here create columns for my volcano plot which assigns colours depending on increased or decreased expression 
+                 
+test_1.upreg_volc$label=ifelse(test_1.upreg_volc$col == "blue","up","down")
+test_1.upreg_volc$label[test_1.upreg_volc$col=="red"]="down"
+test_1.upreg_volc$label[test_1.upreg_volc$col=="black"]="no"
+#  create another column for labelling in my legend depending on level of differential expression                  
+
+png(file="volcano_6hr_14hr.png")
+ggplot(data=test_1.upreg_volc,aes(x=log2_fold_change,y=-log10(q_value)))+
+  geom_point(aes(colour=label),size=0.5)+
+  labs(colour="gene expression")+
+  theme_minimal()+
+  ggtitle("Saccharomyces cerevisiae gene expression 6hrs vs 14hrs")+
+  scale_color_manual(values=c("red","black","blue"))+
+  xlim(-10, 15)
+dev.off()
+# here construct volcano plot using ggplot, x is log2fold change and y is -log10(qvalue),  colour the points using colour label and aes
+# set the limits of x to make graph more legible since there is an outlier which squishes the rest of the graph
+```
+
+### 6vs26 (test_2)
+
+do the exact same as earlier for this test
+
+```{r}
+test_2.all_genes = getSig(cuff_data,x='X6hr',y='X26hr',level="genes",alpha=0.99)
+test_2.genes = getGenes(cuff_data,test_2.all_genes)
+test_2.upreg=subset(diffData(test_2.genes),sample_1=='X6hr' & sample_2=='X26hr' & q_value<0.05 & log2_fold_change>2,select= c(gene_id,log2_fold_change,q_value))
+test_2.upreg_volc=subset(diffData(test_2.genes),sample_1=='X6hr' & sample_2=='X26hr',select= c(gene_id,log2_fold_change,q_value))
+test_2.upreg_genes = as.vector(test_2.upreg$gene_id)
+test_2.upreg_genes_names=getGenes(cuff_data,test_2.upreg_genes)
+test_2.upreg_genes_names=featureNames(test_2.upreg_genes_names)
+test_2.upreg_volc$col=ifelse(test_2.upreg_volc$log2_fold_change > 2 & test_2.upreg$q_value<=0.05, "blue","black")
+test_2.upreg_volc$col[test_2.upreg_volc$log2_fold_change<=-2 &test_1.upreg$q_value<=0.05]="red"
+
+test_2.upreg_volc$label=ifelse(test_2.upreg_volc$col == "blue","up","down")
+test_2.upreg_volc$label[test_2.upreg_volc$col=="red"]="down"
+test_2.upreg_volc$label[test_2.upreg_volc$col=="black"]="no"
+
+                  
+png(file="volcano_6hr_26hr.png")
+ggplot(data=test_2.upreg_volc,aes(x=log2_fold_change,y=-log10(q_value),colour=col))+
+  geom_point(aes(colour=label),size=0.5)+
+  labs(colour="gene expression")+
+  theme_minimal()+
+  ggtitle("Saccharomyces cerevisiae gene expression 6hrs vs 26hrs")
+  scale_color_manual(values=c("red","black","blue"))+
+  xlim(-30, 30)
+  dev.off()
+```
+
+### test 14vs26 (test_3)
+
+do the same thing for this test as well
+
+```{r}
+test_3.all_genes = getSig(cuff_data,x='X14hr',y='X26hr',level="genes",alpha=0.99)
+test_3.genes = getGenes(cuff_data,test_3.all_genes)
+test_3.upreg=subset(diffData(test_3.genes),sample_1=='X14hr' & sample_2=='X26hr' & q_value<0.05 & log2_fold_change>2,select= c(gene_id,log2_fold_change,q_value))
+test_3.upreg_volc=subset(diffData(test_3.genes),sample_1=='X14hr' & sample_2=='X26hr',select= c(gene_id,log2_fold_change,q_value))
+test_3.upreg_genes = as.vector(test_3.upreg$gene_id)
+test_3.upreg_genes_names=getGenes(cuff_data,test_3.upreg_genes)
+test_3.upreg_genes_names=featureNames(test_3.upreg_genes_names)
+test_3.upreg_genes_names = cbind(test_3.upreg_genes_names,test_3.upreg)
+test_3.upreg_genes_names= test_3.upreg_genes_names[,c(2,4,5)]
+test_3.upreg_volc$col=ifelse(test_3.upreg_volc$log2_fold_change > 2 & test_3.upreg$q_value<=0.05, "blue","black")
+test_3.upreg_volc$col[test_3.upreg_volc$log2_fold_change<=-2 &test_1.upreg$q_value<=0.05]="red"
+test_3.upreg_volc$label=ifelse(test_3.upreg_volc$col == "blue","up","down")
+test_3.upreg_volc$label[test_3.upreg_volc$col=="red"]="down"
+test_3.upreg_volc$label[test_3.upreg_volc$col=="black"]="no"
+
+
+pdf(file="volcano_14hr_26hr.pdf")
+ggplot(data=test_3.upreg_volc,aes(x=log2_fold_change,y=-log10(q_value),colour=col))+
+  geom_point(aes(colour=label),size=0.5)+
+  labs(colour="gene expression")+
+  theme_minimal()+
+  ggtitle("Saccharomyces cerevisiae gene expression 14hrs vs 26hrs")+
+  scale_color_manual(values=c("red","black","blue"))+
+  xlim(-10, 20)
+dev.off()
+```
+
+## comparing results
+
+I now wanted to compare their expression for the 17 genes they found
+associated with gluceogenesis with the expression in our analysis for
+those same genes so i decided to remake their heatmap and venn diagram
+using our data
+
+### building gene list for heatmap
+
+i get the genes they found and used and got the fpkm for them for each
+replicate
+
+```{r}
+gene_comp = c('TDH3','FBA1','GPM1','TPI1','PGI1','ENO1','PGK1','TDH2','FBP1','ERT1','SDL1','GPM3','GPM2','TDH1','MDH2','PYC1','PCK1')
+gene_comp_list=getGenes(cuff_data,gene_comp)
+gene_matrix = repFpkm(gene_comp_list)
+#first of all  create a list containing the genes they used in heatmap and get the Fpkm for those genes across all replicates (3 replicates per time)
+# in the heatmap they used Z score
+```
+
+then i had to manipulate the matrix, because their heatmap used z_score,
+i had to pivot to apply zscore after using pivot wider i had to clean
+the data (had multiple rows of same gene but with only one fpkm across
+the replicate columns) after cleaning and merging the values with the
+same GeneID i could then apply z score
+
+```{r}
+gene_comp_feature = featureNames(gene_comp_list)
+# get the actual gene short names for the genes as a dataframe with GeneID
+gene_matrix_pivot=gene_matrix %>% pivot_wider(names_from = rep_name, values_from = fpkm)
+# pivot wider before to help manipulate data, get list of genes with fpkm for each sample as columns
+gene_matrix_pivot=gene_matrix_pivot[,c(1,9:17)]
+#  keep only the geneID [1], the and the fpkm for each replciate [9:17]
+gene_matrix_pivot=gene_matrix_pivot %>%group_by(gene_id)%>%summarise_all(na.omit)
+# because of the pivot wider data frame had multiple rows of the same geneID, each row only having one entry for fpkm across the columns]
+#summarise by geneID , and get rid of NA, meaning all values for that geneID combined into one row giving desired dataframe shape
+```
+
+then applied z score (using scale function) then added gene name to
+column to make gene identifiable by name then for heatmap i had to pivot
+wider again (to get individual rows for heatmap) this gives me a table
+similar to the originial one but with z score instead of fpkm
+
+```{r}
+gene_matrix_zscore <- t(scale(t(gene_matrix_pivot[,2:10])))
+# apply z score but first  transpose it because scale applies columnwise ,  then transpose it back
+gene_matrix_zscore=gene_matrix_zscore[,c(2,1,3,5,4,6,7,8,9)] 
+#  reorder the columns to get replicates in order e.g 6hr_0, 6hr_1, 6hr_2, 14hr_0 etc
+gene_matrix_zscore=cbind(gene_comp_feature$gene_short_name,gene_matrix_zscore)
+#  attach the gene short names back so each gene is recognisable by short name 
+colnames(gene_matrix_zscore)[1]='Gene'
+#  rename the column to gene (was given internal name)
+gene_matrix_zscore=as_data_frame(gene_matrix_zscore)
+# turn it back into dataframe (was matrix before hand)
+gene_heatmap=gene_matrix_zscore %>% pivot_longer(!Gene,names_to = "Sample",values_to = "z score")
+# for the heatmap need to get it back to longer format (e.g each row having gene Id, which replicate and zscore)
+#used pivot longer for this (pretty much reversed pivot wider but with z score instead of fpkm)
+gene_heatmap$`z score`=as.numeric(gene_heatmap$`z score`)
+```
+
+i then make the heatmap, using ggplot 2 by using factor() function i can
+order the heatmap rows and columns in similar way to the original paper
+
+```{r}
+gene_heatmap$Sample <- factor(gene_heatmap$Sample, levels=c("X6hr_0", "X6hr_1", "X6hr_2","X14hr_0","X14hr_1","X14hr_2","X26hr_0","X26hr_1","X26hr_2"))
+gene_heatmap$Gene <- factor(gene_heatmap$Gene, levels=gene_comp[17:1])
+# 2 lines above force the heatmap to display in specified order, done to make it visually comparable to original papers
+
+png(file="heat map z score.png")
+ggplot(gene_heatmap, aes(x=Sample,y=Gene, fill= `z score`)) + 
+  geom_tile()+
+  theme(legend.position = "top")+
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 90, hjust = 1))+
+  theme(legend.text=element_text(size=10),
+  legend.title=element_text(size=15))+
+  scale_fill_distiller(palette = "YlOrRd",direction = 1)
+#construct heatmap using ggplot
+dev.off()
+```
+
+### buiding venn diagram
+
+in order to build venn diagram to compare DEG between tests i used
+ggvenndiagram first i need to find all significant DEGs for all test,
+this is similar to the method used earlier to make volcano plots but
+without the log2fold minimum (they just need to be significantly
+different not neccesarily highly expressed)
+
+```{r}
+# now trying to get a venn diagram containing list of genes, wanted to calculate it mathematically first before using graphing to check 
+test_1.sig_genes=getSig(cuff_data,level="genes",alpha=0.05) # get list of significant genes
+test_1.sig_genes_list=getGenes(cuff_data,test_1.sig_genes) #get all data on those genes
+test_1.sig_list=subset(diffData(test_1.sig_genes_list),sample_1=='X6hr' & sample_2=='X14hr' & q_value<0.05,select= c(gene_id,log2_fold_change,q_value))
+#get dataframe specifying specific test we want (test1 6 vs 14) with specified significance
+test_1.sig_genes_names=getGenes(cuff_data,test_1.sig_list$gene_id)
+# get list of significantly differential genes
+test_1.sig_genes_names=featureNames(test_1.sig_genes_names)
+# get the list of short gene names 
+
+# do the same for the other 2 tests
+
+test_2.sig_genes=getSig(cuff_data,level="genes",alpha=0.05)
+test_2.sig_genes_list=getGenes(cuff_data,test_2.sig_genes)
+test_2.sig_list=subset(diffData(test_2.sig_genes_list),sample_1=='X6hr' & sample_2=='X26hr' & q_value<0.05,select= c(gene_id,log2_fold_change,q_value))
+test_2.sig_genes_names=getGenes(cuff_data,test_2.sig_list$gene_id)
+test_2.sig_genes_names=featureNames(test_2.sig_genes_names)
+
+test_3.sig_genes=getSig(cuff_data,level="genes",alpha=0.05)
+test_3.sig_genes_list=getGenes(cuff_data,test_3.sig_genes)
+test_3.sig_list=subset(diffData(test_3.sig_genes_list),sample_1=='X14hr' & sample_2=='X26hr' & q_value<0.05,select= c(gene_id,log2_fold_change,q_value))
+test_3.sig_genes_names=getGenes(cuff_data,test_3.sig_list$gene_id)
+test_3.sig_genes_names=featureNames(test_3.sig_genes_names)
+
+```
+
+i then before wanting to use ggvenndiagram i wanted to make sure it did
+the calculations right so it was calculated mathematically beforehand
+using intersect() function
+
+```{r}
+x14v26=intersect(test_3.sig_genes_names$gene_short_name,test_2.sig_genes_names$gene_short_name)
+#here i use the intersect function to find how many genes intersect between the two sets (for test 3(14vs26)and test 2(6vs26))
+x6v14=intersect(test_1.sig_genes_names$gene_short_name,test_3.sig_genes_names$gene_short_name)
+# i do the exact same things for test 1 and test 3 (6hr vs 14hr and 14hr v s 26hr)
+x6v26=intersect(test_2.sig_genes_names$gene_short_name, test_1.sig_genes_names$gene_short_name)
+# i do the exact same things for test 2 and test 1 (6hr vs 26hr and 6hr vs 14hr)
+
+x6x14x26=(intersect(intersect(test_2.sig_genes_names$gene_short_name,test_1.sig_genes_names$gene_short_name),test_3.sig_genes_names$gene_short_name))
+length(intersect(x6x14x26,x6v14))      
+#get intersect of all 3 lists, if you imagine a 3 circle venn diagram it would be the part in middle
+```
+
+then used ggvenndiagram set background to white (normally the picture
+background is based on amount of counts) don't need a legend
+
+```{r}
+
+png(file="genes venn diagram.png")
+ggVennDiagram(x,label = "count",c("6hr vs 14hr ","6hr vs 26hr","14hr vs 26hr")) + scale_fill_gradient(low = "#FFFFFF", high = "#FFFFFF") + theme(legend.position = "none") # set background to white FFFFFFF
+dev.off()
+```
+
+## MA plots
+
+creating own MA plots, cummeRbund has built in function for this but
+doesn't allow colouring by for upregulated and downregulated genes
+
+```{r}
+MAplot(genes(cuff_data),"X6hr","X14hr",logMode = T,pseudocount = 5,useCount=T,smooth=FALSE)
+MAplot(genes(cuff_data),"X6hr","X26hr",logMode = T,pseudocount = 5,useCount=T,smooth=FALSE)
+MAplot(genes(cuff_data),"X14hr","X26hr",logMode = T,pseudocount = 5,useCount=T,smooth=FALSE)
+
+```
+
+## gene ontology
+
+wanted to also do gene ontology to check genes, used saccharomyces
+database used sink() function to create lists for gene ontology took the
+
+```{r}
+sink("list for gene ontology.txt")
+noquote(test_3.upreg_genes_names$gene_short_name)
+sink()
+
+test_3.sig_list_GO = test_3.sig_list
+test_3.sig_list_GO_names= getGenes(cuff_data,test_3.sig_list_GO$gene_id)
+test_3.sig_list_GO_names=featureNames(test_3.sig_list_GO_names)
+
+
+sink("list 2 for gene ontology.txt")
+noquote(test_3.sig_list_GO_names$gene_short_name)
+sink()
+```

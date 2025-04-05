@@ -1,0 +1,84 @@
+---
+title: "scRNA - rhesus monkey"
+format: html
+editor: visual
+---
+
+# ScRNA
+we'll be looking at rhesus monkey scRNA
+importing seurat ggplot2 and readr and dplyr
+
+```{r}
+#install.packages("ggplot2")
+#install.packages("Seurat")
+#install.packages("readr")
+#install.packages("dplyr")
+#install.packages("hdf5r")
+library(Seurat)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(hdf5r)
+```
+
+```{r}
+
+Rhesus_singleplex=Read10X_h5("../data_folder/2500_Rhesus_Monkey_PBMCs_Singleplex_5p_gem-x_Universal_Multiplex_count_raw_feature_bc_matrix.h5",use.names = T,unique.features = T)
+```
+
+```{r}
+Rhesus=CreateSeuratObject(Rhesus_singleplex,project = "Rhesus_practice",min.cells = 3,min.features = 1)
+```
+
+```{r}
+Rhesus[["percent_MT"]]=PercentageFeatureSet(Rhesus,pattern = "^MT-")
+```
+
+```{r}
+VlnPlot(Rhesus, features = c("nFeature_RNA", "nCount_RNA", "percent_MT"), ncol = 3)
+FeatureScatter(object = Rhesus,feature1 = 'nCount_RNA',feature2 ='nFeature_RNA'  )
+FeatureScatter(object = Rhesus,feature1 = 'nCount_RNA',feature2 = 'percent_MT')
+```
+```{r}
+Rhesus=subset(Rhesus,subset =  nFeature_RNA > 200 & nFeature_RNA < 4000 & percent_MT < 5)
+```
+
+```{r}
+Rhesus=NormalizeData(object = Rhesus,normalization.method = "LogNormalize")
+```
+```{r}
+Rhesus= FindVariableFeatures(object = Rhesus,selection.method = "vst")
+```
+
+```{r}
+top20=head(VariableFeatures(object = Rhesus),20)
+plot1=VariableFeaturePlot(object = Rhesus,cols = c("black","red"))
+LabelPoints(plot1,points=head(VariableFeatures(object = Rhesus),20),repel = T)
+```
+```{r}
+Rhesus=SCTransform(Rhesus,vars.to.regress = "percent_MT")
+```
+
+```{r}
+Rhesus=RunPCA(Rhesus)
+Rhesus=RunUMAP(Rhesus,dims = 1:30)
+
+```
+
+```{r}
+Rhesus=FindNeighbors(Rhesus,dims = 1:30)
+Rhesus=FindClusters(object = Rhesus,resolution = 1.2)
+DimHeatmap(object = Rhesus,dims = 1:20,cells = 1000)
+ElbowPlot(Rhesus)
+DimPlot(object = Rhesus,label = T)
+print(Rhesus[["pca"]],dims=1:5,nfeatures = 10)
+```
+```{r}
+VizDimLoadings(object = Rhesus,dims = 1)
+FeaturePlot(object = Rhesus,features = 'nFeature_RNA')
+FeaturePlot(object = Rhesus,features = 'nCount_RNA')
+
+```
+
+
+
