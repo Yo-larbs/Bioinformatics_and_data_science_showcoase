@@ -1,5 +1,0 @@
-"0","top20=head(VariableFeatures(object = Rhesus),20)"
-"0","plot1=VariableFeaturePlot(object = Rhesus,cols = c(""black"",""red""))"
-"0","LabelPoints(plot1,points=head(VariableFeatures(object = Rhesus),20),repel = T)"
-"2","When using repel, set xnudge and ynudge to 0 for optimal results
-"
